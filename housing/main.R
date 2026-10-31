@@ -82,6 +82,12 @@ source("R/07_prediction.R")
 source("R/08_variantes.R")
 source("R/09_robustesse.R")
 
+# ------------------------------------------------------------
+# OÙ RIDGE ET LASSO FONT VRAIMENT LA DIFFÉRENCE
+# ------------------------------------------------------------
+
+source("R/10_showcase.R")
+
 cat("\n========================================\n")
 cat("          ANALYSE TERMINEE\n")
 cat("========================================\n")
