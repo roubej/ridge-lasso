@@ -1,0 +1,29 @@
+"Variante","Modele","Alpha","Lambda","RMSE","MAE","R2","Variables"
+"Prix brut, toutes les ventes","Régression classique (MCO)",NA,NA,23455,14928.2,0.912,286
+"Prix brut, toutes les ventes","Ridge",0,25810,24165.7,14672.5,0.9065,294
+"Prix brut, toutes les ventes","Ridge (1 ET)",0,114400,27973.9,16511.3,0.8748,294
+"Prix brut, toutes les ventes","Lasso",1,556.1,23046.7,14082.5,0.915,123
+"Prix brut, toutes les ventes","Lasso (1 ET)",1,3923,28028.3,17132.6,0.8743,30
+"Prix brut, toutes les ventes","Elastic Net",0.5,1112,23063.6,14066.5,0.9149,125
+"Prix brut, toutes les ventes","Elastic Net (1 ET)",0.5,7846,28182,17111.9,0.8729,32
+"log(prix), toutes les ventes","Régression classique (MCO)",NA,NA,21186.6,13427.7,0.9282,286
+"log(prix), toutes les ventes","Ridge",0,0.1245,22506.3,14128,0.9189,294
+"log(prix), toutes les ventes","Ridge (1 ET)",0,0.6056,28045.8,16868.9,0.8741,294
+"log(prix), toutes les ventes","Lasso",1,0.00203,21249.8,13080.7,0.9277,152
+"log(prix), toutes les ventes","Lasso (1 ET)",1,0.01725,27098.4,16467.6,0.8825,35
+"log(prix), toutes les ventes","Elastic Net",0.5,0.00489,21375.8,13093.6,0.9269,147
+"log(prix), toutes les ventes","Elastic Net (1 ET)",0.5,0.0345,27449.7,16600.2,0.8794,41
+"Prix brut, sans atypiques","Régression classique (MCO)",NA,NA,20669.8,13448.3,0.9336,287
+"Prix brut, sans atypiques","Ridge",0,6287,20740,13077.9,0.9332,295
+"Prix brut, sans atypiques","Ridge (1 ET)",0,27860,21815.6,13357.7,0.9261,295
+"Prix brut, sans atypiques","Lasso",1,312.9,20624.1,12989.1,0.9339,172
+"Prix brut, sans atypiques","Lasso (1 ET)",1,870.7,21437.1,13272.9,0.9286,92
+"Prix brut, sans atypiques","Elastic Net",0.5,570.2,20604.5,12995.5,0.934,179
+"Prix brut, sans atypiques","Elastic Net (1 ET)",0.5,1587,21342.5,13185.2,0.9292,99
+"log(prix), sans atypiques","Régression classique (MCO)",NA,NA,18049.2,12339.9,0.9494,287
+"log(prix), sans atypiques","Ridge",0,0.06456,18121.6,12143.8,0.949,295
+"log(prix), sans atypiques","Ridge (1 ET)",0,0.2606,20539,13262.4,0.9345,295
+"log(prix), sans atypiques","Lasso",1,0.002215,18115.8,11961.2,0.949,148
+"log(prix), sans atypiques","Lasso (1 ET)",1,0.006763,19778,12737.9,0.9392,69
+"log(prix), sans atypiques","Elastic Net",0.5,0.004861,18133,11936.9,0.9489,142
+"log(prix), sans atypiques","Elastic Net (1 ET)",0.5,0.01353,19787.4,12696.7,0.9392,73

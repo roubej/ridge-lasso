@@ -1,0 +1,83 @@
+variable,nature,description,valeurs,nb_na
+order,Identifiant,Numéro d'ordre de l'observation (non utilisé),de 1 à 2930,0
+pid,Identifiant,Identifiant de la parcelle (non utilisé),de 5.26301e+08 à 1.0071e+09,0
+ms_subclass,Qualitative nominale,"Type de logement concerné par la vente (16 codes, par exemple 20 = un niveau construit en 1946 ou après)",de 20 à 190,0
+ms_zoning,Qualitative nominale,"Zonage de la parcelle (résidentiel faible ou forte densité, commercial, agricole...)",7 modalités,0
+lot_frontage,Quantitative continue,Longueur de terrain donnant sur la rue (pieds),de 21 à 313,490
+lot_area,Quantitative continue,Surface du terrain (pieds carrés),de 1300 à 215245,0
+street,Qualitative nominale,Type de route d'accès (pavée ou gravier),2 modalités,0
+alley,Qualitative nominale,"Type de ruelle d'accès (pavée, gravier, aucune)",2 modalités,2732
+lot_shape,Qualitative ordinale,"Forme du terrain, de régulière à très irrégulière",4 modalités,0
+land_contour,Qualitative nominale,"Relief du terrain (plat, pente, creux...)",4 modalités,0
+utilities,Qualitative ordinale,"Services disponibles (eau, gaz, électricité, fosse septique)",3 modalités,0
+lot_config,Qualitative nominale,"Configuration du terrain (intérieur, angle, cul-de-sac...)",5 modalités,0
+land_slope,Qualitative ordinale,"Pente du terrain (douce, modérée, forte)",3 modalités,0
+neighborhood,Qualitative nominale,Quartier de la ville d'Ames (28 quartiers),28 modalités,0
+condition_1,Qualitative nominale,"Proximité d'une route principale, d'une voie ferrée ou d'un parc (condition principale)",9 modalités,0
+condition_2,Qualitative nominale,"Seconde condition de proximité, quand il y en a plusieurs",8 modalités,0
+bldg_type,Qualitative nominale,"Type d'habitation (individuelle, jumelée, maison en rangée, duplex...)",5 modalités,0
+house_style,Qualitative nominale,"Style du logement (un niveau, deux niveaux, un niveau et demi, split...)",8 modalités,0
+overall_qual,"Quantitative discrète (ordinale, 1 à 10)",Qualité globale des matériaux et de la finition,de 1 à 10,0
+overall_cond,"Quantitative discrète (ordinale, 1 à 10)",État général du logement,de 1 à 9,0
+year_built,Quantitative discrète,Année de construction d'origine,de 1872 à 2010,0
+year_remod_add,Quantitative discrète,Année de rénovation ou d'extension (année de construction s'il n'y en a pas eu),de 1950 à 2010,0
+roof_style,Qualitative nominale,Style de toit,6 modalités,0
+roof_matl,Qualitative nominale,Matériau du toit,8 modalités,0
+exterior_1st,Qualitative nominale,Revêtement extérieur principal,16 modalités,0
+exterior_2nd,Qualitative nominale,"Second revêtement extérieur, quand il y en a plusieurs",17 modalités,0
+mas_vnr_type,Qualitative nominale,Type de placage en maçonnerie,4 modalités,1775
+mas_vnr_area,Quantitative continue,Surface du placage en maçonnerie (pi²),de 0 à 1600,23
+exter_qual,Qualitative ordinale,Qualité du matériau extérieur,4 modalités,0
+exter_cond,Qualitative ordinale,État actuel du matériau extérieur,5 modalités,0
+foundation,Qualitative nominale,Type de fondation,6 modalités,0
+bsmt_qual,Qualitative ordinale,Hauteur du sous-sol (évaluation de la qualité),5 modalités,80
+bsmt_cond,Qualitative ordinale,État général du sous-sol,5 modalités,80
+bsmt_exposure,Qualitative ordinale,Accès extérieur du sous-sol (sortie de plain-pied ou donnant sur le jardin),4 modalités,83
+bsmtfin_type_1,Qualitative ordinale,Qualité de la première zone aménagée du sous-sol,6 modalités,80
+bsmtfin_sf_1,Quantitative continue,Surface de la première zone aménagée (pi²),de 0 à 5644,1
+bsmtfin_type_2,Qualitative ordinale,Qualité de la seconde zone aménagée du sous-sol,6 modalités,81
+bsmtfin_sf_2,Quantitative continue,Surface de la seconde zone aménagée (pi²),de 0 à 1526,1
+bsmt_unf_sf,Quantitative continue,Surface du sous-sol non aménagée (pi²),de 0 à 2336,1
+total_bsmt_sf,Quantitative continue,Surface totale du sous-sol (pi²),de 0 à 6110,1
+heating,Qualitative nominale,Type de chauffage,6 modalités,0
+heating_qc,Qualitative ordinale,Qualité et état du chauffage,5 modalités,0
+central_air,Qualitative nominale (binaire),Climatisation centrale (oui ou non),2 modalités,0
+electrical,Qualitative nominale,Système électrique,5 modalités,1
+1st_flr_sf,Quantitative continue,Surface du rez-de-chaussée (pi²). Devient X1st_flr_sf sous R,de 334 à 5095,0
+2nd_flr_sf,Quantitative continue,Surface du deuxième niveau (pi²). Devient X2nd_flr_sf sous R,de 0 à 2065,0
+low_qual_fin_sf,Quantitative continue,"Surface finie de basse qualité, tous niveaux (pi²)",de 0 à 1064,0
+gr_liv_area,Quantitative continue,Surface habitable hors sous-sol (pi²),de 334 à 5642,0
+bsmt_full_bath,Quantitative discrète,Salles de bain complètes au sous-sol,de 0 à 3,2
+bsmt_half_bath,Quantitative discrète,Demi-salles de bain au sous-sol,de 0 à 2,2
+full_bath,Quantitative discrète,Salles de bain complètes hors sous-sol,de 0 à 4,0
+half_bath,Quantitative discrète,Demi-salles de bain hors sous-sol,de 0 à 2,0
+bedroom_abvgr,Quantitative discrète,Nombre de chambres hors sous-sol,de 0 à 8,0
+kitchen_abvgr,Quantitative discrète,Nombre de cuisines,de 0 à 3,0
+kitchen_qual,Qualitative ordinale,Qualité de la cuisine,5 modalités,0
+totrms_abvgrd,Quantitative discrète,Nombre total de pièces hors sous-sol (salles de bain exclues),de 2 à 15,0
+functional,Qualitative ordinale,Fonctionnalité du logement (déductions pour défauts),8 modalités,0
+fireplaces,Quantitative discrète,Nombre de cheminées,de 0 à 4,0
+fireplace_qu,Qualitative ordinale,Qualité de la cheminée,5 modalités,1422
+garage_type,Qualitative nominale,"Emplacement du garage (attenant, détaché, intégré, aucun...)",6 modalités,157
+garage_yr_blt,Quantitative discrète,Année de construction du garage,de 1895 à 2207,159
+garage_finish,Qualitative ordinale,Finition intérieure du garage,3 modalités,159
+garage_cars,Quantitative discrète,Capacité du garage (nombre de voitures),de 0 à 5,1
+garage_area,Quantitative continue,Surface du garage (pi²),de 0 à 1488,1
+garage_qual,Qualitative ordinale,Qualité du garage,5 modalités,159
+garage_cond,Qualitative ordinale,État du garage,5 modalités,159
+paved_drive,Qualitative ordinale,"Allée pavée (oui, en partie, non)",3 modalités,0
+wood_deck_sf,Quantitative continue,Surface de la terrasse en bois (pi²),de 0 à 1424,0
+open_porch_sf,Quantitative continue,Surface du porche ouvert (pi²),de 0 à 742,0
+enclosed_porch,Quantitative continue,Surface du porche fermé (pi²),de 0 à 1012,0
+3ssn_porch,Quantitative continue,Surface du porche trois saisons (pi²). Devient X3ssn_porch sous R,de 0 à 508,0
+screen_porch,Quantitative continue,Surface du porche moustiquaire (pi²),de 0 à 576,0
+pool_area,Quantitative continue,Surface de la piscine (pi²),de 0 à 800,0
+pool_qc,Qualitative ordinale,Qualité de la piscine,4 modalités,2917
+fence,Qualitative ordinale,Qualité de la clôture,4 modalités,2358
+misc_feature,Qualitative nominale,"Équipement divers non couvert ailleurs (ascenseur, second garage, cabanon, court de tennis...)",5 modalités,2824
+misc_val,Quantitative continue,Valeur de cet équipement divers ($),de 0 à 17000,0
+mo_sold,Qualitative nominale (codée 1 à 12),Mois de la vente,de 1 à 12,0
+yr_sold,Quantitative discrète,Année de la vente (2006 à 2010),de 2006 à 2010,0
+sale_type,Qualitative nominale,"Type de vente (comptant, crédit, vente neuve...)",10 modalités,0
+sale_condition,Qualitative nominale,"Condition de la vente (normale, partielle, entre proches, saisie...)",6 modalités,0
+saleprice,Quantitative continue (cible),Prix de vente ($) : variable à prédire,de 12789 à 755000,0

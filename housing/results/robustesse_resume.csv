@@ -1,0 +1,5 @@
+"Modele","RMSE_moyen","RMSE_ecart_type","R2_moyen","Variables_moyennes"
+"Elastic Net",19685,1050,0.9368,136
+"Lasso",19782,981,0.9362,128
+"Ridge",20003,817,0.9347,293
+"Régression classique (MCO)",22918,5705,0.9116,285
