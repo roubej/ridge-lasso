@@ -7,6 +7,9 @@
 # Nettoyage de l'environnement
 rm(list = ls())
 
+# Pas de notation scientifique sur les axes (-600000 au lieu de -6e+05)
+options(scipen = 999)
+
 # Création du dossier résultats si nécessaire
 if(!dir.exists("results")) {
   dir.create("results")
@@ -83,7 +86,8 @@ source("R/08_variantes.R")
 source("R/09_robustesse.R")
 
 # ------------------------------------------------------------
-# OÙ RIDGE ET LASSO FONT VRAIMENT LA DIFFÉRENCE
+# Vitrine : où Ridge et Lasso font la différence
+# (courbe d'apprentissage, variables de bruit ; quelques minutes)
 # ------------------------------------------------------------
 
 source("R/10_showcase.R")
