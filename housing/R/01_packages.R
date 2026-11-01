@@ -9,7 +9,8 @@ packages <- c(
   "caret",
   "corrplot",
   "Metrics",
-  "scales"
+  "scales",
+  "dplyr"
 )
 
 # Installation des packages manquants
@@ -26,6 +27,8 @@ library(caret)
 library(corrplot)
 library(Metrics)
 library(scales)
+library(dplyr)
+
 
 # Pour avoir les mêmes résultats à chaque exécution
 set.seed(123)
