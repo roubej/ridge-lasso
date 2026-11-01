@@ -41,17 +41,12 @@ cat(
 # Graphique validation croisée
 # ------------------------------------------------------------
 
-png(
+# RMSE en dollars (plot_cv_rmse est définie dans R/functions.R)
+ggplot2::ggsave(
   "results/cv_ridge.png",
-  width = 900,
-  height = 650
+  plot_cv_rmse(cv_ridge, "Validation croisée - Ridge"),
+  width = 8, height = 5.5, dpi = 120
 )
-
-plot(cv_ridge)
-
-title("Validation croisée - Ridge")
-
-dev.off()
 
 # ------------------------------------------------------------
 # Modèle final
