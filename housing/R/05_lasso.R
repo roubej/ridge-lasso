@@ -38,17 +38,12 @@ cat(
 # Graphique CV
 # ------------------------------------------------------------
 
-png(
+# RMSE en dollars (plot_cv_rmse est définie dans R/functions.R)
+ggplot2::ggsave(
   "results/cv_lasso.png",
-  width = 900,
-  height = 650
+  plot_cv_rmse(cv_lasso, "Validation croisée - Lasso"),
+  width = 8, height = 5.5, dpi = 120
 )
-
-plot(cv_lasso)
-
-title("Validation croisée - Lasso")
-
-dev.off()
 
 # ------------------------------------------------------------
 # Modèle final
