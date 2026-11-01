@@ -9,11 +9,11 @@
 
 cat("\n===== ROBUSTESSE (10 DECOUPAGES) =====\n")
 
-d_clean <- data[data$gr_liv_area <= 4000, ]
 modeles_garde <- c("Régression classique (MCO)", "Ridge", "Lasso", "Elastic Net")
 
 res_rob <- do.call(rbind, lapply(1:10, function(sd_) {
-  p <- prepare_ames(d_clean, p = 0.80, seed = sd_)
+  p <- prepare_ames(data, p = 0.80, seed = sd_,
+                    train_max_area = 4000, test_max_area = 4000)
   r <- fit_models(p, uselog = TRUE, seed = sd_)
   r <- r[r$Modele %in% modeles_garde, ]
   cbind(Decoupage = sd_, r)
@@ -40,7 +40,7 @@ gagnants <- res_rob %>%
   group_by(Decoupage) %>%
   slice_min(RMSE, n = 1) %>%
   ungroup() %>%
-  count(Modele, name = "fois_meilleur")
+  dplyr::count(., Modele, name = "fois_meilleur")
 cat("\nNombre de découpages où le modèle a le plus petit RMSE :\n")
 print(as.data.frame(gagnants), row.names = FALSE)
 
