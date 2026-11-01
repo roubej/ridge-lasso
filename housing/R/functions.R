@@ -16,7 +16,8 @@
 # Retourne une liste avec les matrices x_train / x_test, les cibles
 # y_train / y_test et les objets utiles pour prédire de nouvelles maisons.
 # ------------------------------------------------------------
-prepare_ames <- function(data, p = 0.80, seed = 123) {
+prepare_ames <- function(data, p = 0.80, seed = 123,
+                         train_max_area = Inf, test_max_area = Inf) {
 
   # 1. Suppression des identifiants
   d <- data[, !(names(data) %in% c("order", "pid")), drop = FALSE]
@@ -37,6 +38,11 @@ prepare_ames <- function(data, p = 0.80, seed = 123) {
   idx   <- caret::createDataPartition(d$saleprice, p = p, list = FALSE)
   train <- d[idx, , drop = FALSE]
   test  <- d[-idx, , drop = FALSE]
+
+  # Ventes atypiques : on peut les écarter de l'apprentissage et/ou du test.
+  # Le découpage est fait AVANT, donc il est identique d'une variante à l'autre.
+  if (is.finite(train_max_area)) train <- train[train$gr_liv_area <= train_max_area, , drop = FALSE]
+  if (is.finite(test_max_area))  test  <- test[test$gr_liv_area  <= test_max_area,  , drop = FALSE]
 
   # 4. Cible et variables explicatives
   y_train <- train$saleprice
@@ -188,4 +194,30 @@ fit_models <- function(prep, uselog = FALSE, seed = 123, nfolds = 10) {
   out <- do.call(rbind, res)
   rownames(out) <- NULL
   out
+}
+
+# ------------------------------------------------------------
+# plot_cv_rmse() : courbe de validation croisée en RMSE (dollars)
+# Remplace plot(cv) de glmnet, dont l'axe vertical est un MSE en
+# dollars au carré (étiquettes du type 1e+09, peu lisibles).
+#   cv    : objet renvoyé par cv.glmnet()
+#   title : titre du graphique
+# Utilisée par 04_ridge.R et 05_lasso.R.
+# ------------------------------------------------------------
+plot_cv_rmse <- function(cv, title = "") {
+  df <- data.frame(ll   = log(cv$lambda),
+                   rmse = sqrt(cv$cvm),
+                   lo   = sqrt(pmax(cv$cvlo, 0)),
+                   up   = sqrt(cv$cvup))
+  ggplot2::ggplot(df, ggplot2::aes(x = ll, y = rmse)) +
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = lo, ymax = up), fill = "#0F7B8A", alpha = 0.2) +
+    ggplot2::geom_line(colour = "#0F7B8A", linewidth = 1) +
+    ggplot2::geom_vline(xintercept = log(cv$lambda.min), linetype = "dashed", colour = "#E9A23B") +
+    ggplot2::geom_vline(xintercept = log(cv$lambda.1se), linetype = "dotted", colour = "#C0392B") +
+    ggplot2::scale_y_continuous(labels = function(v) paste0(format(round(v / 1000), big.mark = " "), " k$")) +
+    ggplot2::labs(title = title,
+                  subtitle = "Tireté orange : lambda.min · pointillé rouge : lambda.1se",
+                  x = "log(λ)  (pénalité plus forte vers la droite)",
+                  y = "Erreur de validation croisée (RMSE, $)") +
+    ggplot2::theme_minimal(base_size = 12)
 }
