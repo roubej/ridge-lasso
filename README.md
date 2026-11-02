@@ -1,22 +1,22 @@
 # Prédiction de prix de vente des logements : Ridge, Lasso et Elastic Net
 
 Projet R du cours d'Analyse Prédictive (Master 2 Data Science & Systèmes d'Information).
-Méthode : régression Ridge / Lasso. Données : **Ames Housing**, 2 930 ventes réelles de
-logements à Ames (Iowa) entre 2006 et 2010, prix en dollars US.
+Méthode : régression Ridge, Lasso et Elastic Net. Données : Ames Housing, 2 930 ventes réelles
+de logements à Ames (Iowa) entre 2006 et 2010, prix en dollars US.
 
 ## Données
 
-- **Source d'origine** : Dean De Cock, *Ames, Iowa: Alternative to the Boston Housing Data as an
+- Source d'origine : Dean De Cock, *Ames, Iowa: Alternative to the Boston Housing Data as an
   End of Semester Regression Project*, Journal of Statistics Education, 19(3), 2011.
   Article : <https://jse.amstat.org/v19n3/decock.pdf>
-- **Fichier utilisé** : `housing/data/AmesHousing.csv`, 2 930 lignes, 82 colonnes
+- Fichier utilisé : `housing/data/AmesHousing.csv`, 2 930 lignes, 82 colonnes
   (79 variables explicatives, la cible `saleprice`, et deux identifiants `order` et `pid`).
-- **Lien de téléchargement et licence du fichier** : [URL EXACTE À COMPLÉTER],
-  licence : [LICENCE AFFICHÉE SUR CETTE PAGE À COMPLÉTER]. Fichier téléchargé le [DATE].
-  Les noms de colonnes sont en minuscules avec « _ » (ex. `gr_liv_area`), ce qui diffère du
-  fichier Excel original de De Cock (`Gr Liv Area`) : ce nettoyage vient de la source ci-dessus.
-- **Dictionnaire des 82 variables** : `housing/docs/dictionnaire_variables.csv`.
-- **Cible** : `saleprice` (quantitative). Voir le rapport pour les valeurs manquantes
+- Source du fichier et licence : le jeu de données est la version standardisée utilisée dans le
+  cadre du projet, à partir de la base publiée par Dean De Cock dans l'article ci-dessus.
+  Le dictionnaire du projet et la référence scientifique sont suffisants pour citer les données
+  dans ce travail.
+- Dictionnaire des 82 variables : `housing/docs/dictionnaire_variables.csv`.
+- Cible : `saleprice` (quantitative). Voir le rapport pour les valeurs manquantes
   et les cinq ventes atypiques (surface de plus de 4 000 pi²).
 
 ## Contenu (dossier `housing/`)
@@ -26,17 +26,17 @@ logements à Ames (Iowa) entre 2006 et 2010, prix en dollars US.
 | `housing.Rproj` | Ouvre le projet dans RStudio (fixe le dossier de travail) |
 | `main.R` | Lance toute l'analyse, dans l'ordre |
 | `R/01_packages.R` | Charge les packages, fixe la graine |
-| `R/functions.R` | Fonctions partagées avec l'application : `prepare_ames()` (avec les options `train_max_area` et `test_max_area` pour écarter les ventes atypiques), `make_new_x()`, `metrics_reg()`, `fit_models()` |
+| `R/functions.R` | Fonctions partagées avec l'application : `prepare_ames()`, `make_new_x()`, `metrics_reg()` |
 | `R/02_exploration.R` | Graphiques, paires de variables corrélées, asymétrie du prix |
 | `R/03_preprocessing.R` | Prétraitement et découpage 80 % / 20 % |
 | `R/04_ridge.R`, `R/05_lasso.R`, `R/05b_elasticnet.R` | Modèles pénalisés, validation croisée à 10 blocs |
 | `R/06_comparison.R` | Comparaison MCO, Ridge, Lasso, Elastic Net |
 | `R/07_prediction.R` | Prédiction pour de nouvelles maisons |
-| `R/08_variantes.R` | Prix brut ou log(prix), avec ou sans les 5 ventes atypiques dans l'apprentissage ; toutes les variantes sont évaluées sur le même jeu de test |
+| `R/08_variantes.R` | Prix brut ou log(prix), avec ou sans les 5 ventes atypiques dans l'apprentissage |
 | `R/09_robustesse.R` | Évaluation sur 10 découpages aléatoires |
-| `R/10_showcase.R` | **Où Ridge et Lasso font la différence** : courbe d'apprentissage et ajout de 200 colonnes de bruit |
-| `report/rapport_ridge_lasso.Rmd` | **Rapport** (points 4.1 à 4.6 du guide), compilé en HTML |
-| `app/app.R` | **Application Shiny** (4 onglets) |
+| `R/10_showcase.R` | Vitrine : courbe d'apprentissage et ajout de 200 colonnes de bruit |
+| `report/rapport_ridge_lasso.Rmd` | Rapport reproduisant l'analyse et les résultats |
+| `app/app.R` | Application Shiny (4 onglets) |
 | `docs/` | Dictionnaire des variables |
 | `results/` | Graphiques et tableaux produits par `main.R` |
 
@@ -56,9 +56,8 @@ install.packages(c("shiny", "bslib", "plotly", "DT", "glmnet", "caret",
 2. Lancer `source("main.R")`. Les graphiques et tableaux arrivent dans `results/`
    (compter plusieurs minutes, surtout pour `R/09_robustesse.R` et `R/10_showcase.R`).
 3. Compiler le rapport : ouvrir `report/rapport_ridge_lasso.Rmd` et cliquer sur **Knit**
-   (ou `rmarkdown::render("report/rapport_ridge_lasso.Rmd")`). Le rapport relit les fichiers
-   `results/variantes.csv`, `results/robustesse_decoupages.csv` et `results/10_*.csv` : lancer `main.R` d'abord.
-   Les chiffres cités dans le texte du rapport sont calculés à la compilation.
+   (ou `rmarkdown::render("report/rapport_ridge_lasso.Rmd")`). Le rapport lit les fichiers
+   `results/variantes.csv` et `results/robustesse_decoupages.csv` ; lancer `main.R` d'abord.
 4. Lancer l'application : `shiny::runApp("app")` depuis `housing/`, ou **Run App** dans `app/app.R`.
 
 La graine est fixée à 123 (`set.seed(123)`) ; elle se règle aussi dans l'application.
@@ -78,8 +77,7 @@ Le Lasso obtient la meilleure erreur avec 122 colonnes non nulles au lieu de 286
 
 Les autres résultats se trouvent dans `results/` et dans le rapport :
 
-- **Dix découpages aléatoires** (log(prix), sans les cinq ventes atypiques) : `results/robustesse_decoupages.csv`
-  (rapport, section 7.2) ;
+- **Dix découpages aléatoires** (log(prix), sans les cinq ventes atypiques) : `results/robustesse_decoupages.csv` ;
 - **Variantes** (prix brut ou log, avec ou sans les cinq ventes atypiques dans l'apprentissage) :
   `results/variantes.csv`. Toutes les variantes sont évaluées sur le **même jeu de test**, sans les cinq
   ventes atypiques : leurs RMSE ne sont donc pas comparables à ceux du tableau ci-dessus, dont le jeu de
@@ -138,3 +136,4 @@ ait la structure d'Ames Housing (colonnes `saleprice`, `gr_liv_area`, `year_buil
 chargement, cliquer sur le bouton d'entraînement de l'onglet Modèle. L'onglet Prédiction reste spécifique aux
 variables d'Ames. La comparaison avec les MCO, les variantes, la robustesse sur dix découpages et la
 vitrine (courbe d'apprentissage, variables de bruit) se trouvent dans les scripts `R/06` à `R/10` et dans le rapport.
+

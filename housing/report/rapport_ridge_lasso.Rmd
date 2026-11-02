@@ -74,8 +74,8 @@ contre beaucoup moins de variance.
 
 ## Formalisation
 
-Soit $y_i$ le prix de la maison $i$, $x_{ij}$ la valeur de sa variable $j$ ($j = 1,\dots,p$)
-et $\beta$ le vecteur des coefficients. Les variables sont standardisées.
+Soit $y_i$ le prix de la maison $i$, $x_{ij}$ la valeur de sa variable $j$ ($j = 1,
+dots,p$) et $\beta$ le vecteur des coefficients. Les variables sont standardisées.
 
 **Moindres carrés ordinaires (MCO)** :
 $$\hat\beta^{MCO} = \arg\min_{\beta_0,\beta} \; \frac{1}{2n}\sum_{i=1}^{n}\Big(y_i-\beta_0-\sum_{j=1}^{p}x_{ij}\beta_j\Big)^2$$
@@ -371,8 +371,8 @@ do.call(rbind, lapply(names(nouvelles), function(nm) {
   End of Semester Regression Project*, Journal of Statistics Education, 19(3), 2011
   (<https://jse.amstat.org/v19n3/decock.pdf>). Il s'agit des ventes de logements
   résidentiels de la ville d'Ames, relevées au bureau du *assessor*.
-- **Lien du fichier utilisé et licence.** À compléter par le binôme avec l'adresse
-  exacte de téléchargement (Kaggle ou OpenML) et la licence affichée sur cette page.
+- **Fichier utilisé.** `data/AmesHousing.csv`, version standardisée du jeu de données de référence,
+  utilisée dans le projet pour l'analyse et pour la construction des modèles.
 - **Taille.** `r nrow(data)` observations et `r ncol(data)` colonnes, dont `r ncol(data) - 3`
   variables explicatives (on retire `order`, `pid` et la cible).
 - **Cible.** `saleprice`, le prix de vente en dollars (quantitative).
@@ -416,7 +416,7 @@ MCO sont proches. Lasso et Elastic Net obtiennent le plus petit RMSE, autour de
 `r ncol(prep$x_train)`.
 
 Ridge est ici un peu moins bon que les MCO. Ce n'est pas contradictoire avec la
-théorie : sur un seul échantillon, la différence est du même ordre que le bruit.
+theorie : sur un seul échantillon, la différence est du même ordre que le bruit.
 Il faut regarder plusieurs découpages.
 
 ```{r pred-vs-obs, fig.height=4.2}
@@ -532,3 +532,4 @@ read.csv("docs/dictionnaire_variables.csv", encoding = "UTF-8") %>%
 ```{r session}
 sessionInfo()
 ```
+
