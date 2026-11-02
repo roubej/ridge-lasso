@@ -7,8 +7,24 @@
 #
 # Packages nécessaires (à installer UNE fois, dans la console) :
 #   install.packages(c("shiny", "bslib", "plotly", "DT", "glmnet", "caret"))
+#
+# Organisation du fichier :
+#   1. Packages et données        (exécuté une seule fois au démarrage)
+#   2. Fonctions d'affichage      (thème des graphiques, formats français)
+#   3. UI                         (l'interface : 4 onglets)
+#   4. SERVER                     (le calcul : modèle, graphiques, prédiction)
 # ============================================================
 
+# ------------------------------------------------------------
+# 1. PACKAGES ET DONNEES
+# ------------------------------------------------------------
+needed  <- c("shiny", "bslib", "plotly", "DT", "glmnet", "caret")
+missing <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing) > 0) {
+  stop("Packages manquants : ", paste(missing, collapse = ", "),
+       ".\nInstallez-les avec : install.packages(c(",
+       paste0('"', missing, '"', collapse = ", "), "))", call. = FALSE)
+}
 library(shiny)
 library(bslib)
 library(plotly)
@@ -16,355 +32,533 @@ library(DT)
 library(glmnet)
 library(caret)
 
-if (!exists("prepare_ames")) source(file.path("R", "functions.R"))
-if (!exists("plot_cv_rmse")) source(file.path("R", "functions.R"))
+# Chemin du projet : fonctionne avec "Run App" (dossier app/) ou depuis housing/
+root <- if (file.exists("../data/AmesHousing.csv")) ".." else
+  if (file.exists("data/AmesHousing.csv"))    "."  else
+    stop("Fichier data/AmesHousing.csv introuvable. Ouvrez le projet housing.Rproj.", call. = FALSE)
 
-ames_data <- read.csv(file.path("data", "AmesHousing.csv"), stringsAsFactors = FALSE)
+source(file.path(root, "R", "functions.R"))   # prepare_ames(), make_new_x(), metrics_reg()
 
+data <- read.csv(file.path(root, "data", "AmesHousing.csv"), stringsAsFactors = FALSE)
+
+neighborhoods <- sort(unique(data$neighborhood))
+
+# Noms des variables en français (ceux qui manquent gardent leur nom d'origine)
+labels_fr <- c(
+  saleprice = "Prix de vente ($)", overall_qual = "Qualité générale (1-10)",
+  overall_cond = "État général (1-10)", gr_liv_area = "Surface habitable (pi²)",
+  year_built = "Année de construction", year_remod_add = "Année de rénovation",
+  total_bsmt_sf = "Surface du sous-sol (pi²)", garage_cars = "Places de garage",
+  garage_area = "Surface du garage (pi²)", full_bath = "Salles de bain complètes",
+  half_bath = "Demi-salles de bain", bedroom_abvgr = "Chambres",
+  lot_area = "Surface du terrain (pi²)", lot_frontage = "Façade du terrain (pi)",
+  X1st_flr_sf = "Surface du 1er niveau (pi²)", X2nd_flr_sf = "Surface du 2e niveau (pi²)",
+  totrms_abvgrd = "Pièces (hors sous-sol)", fireplaces = "Cheminées",
+  mas_vnr_area = "Surface de placage (pi²)", wood_deck_sf = "Terrasse en bois (pi²)",
+  open_porch_sf = "Porche ouvert (pi²)", neighborhood = "Quartier",
+  house_style = "Style de maison", bldg_type = "Type de bâtiment",
+  central_air = "Climatisation centrale", kitchen_qual = "Qualité de la cuisine",
+  ms_zoning = "Zonage", sale_condition = "Condition de vente",
+  garage_yr_blt = "Année du garage", bsmtfin_sf_1 = "Sous-sol aménagé (pi²)", bsmt_unf_sf = "Sous-sol non fini (pi²)",
+  enclosed_porch = "Porche fermé (pi²)", bsmt_qual = "Qualité du sous-sol", exter_qual = "Qualité extérieure",
+  roof_matl = "Matériau du toit", misc_feature = "Équipement divers", condition_2 = "Condition (2)",
+  bsmt_exposure = "Accès extérieur du sous-sol", pool_qc = "Qualité de la piscine", ms_subclass = "Type de logement"
+)
+# Nom lisible : libellé français, sinon le nom d'origine sans les « _ »
+lab <- function(v) ifelse(v %in% names(labels_fr), unname(labels_fr[v]), gsub("_", " ", v))
+
+# Codes de qualité -> français
+qual_fr <- c(Ex = "Excellent", Gd = "Bon", TA = "Moyen", Fa = "Passable", Po = "Mauvais", Missing = "Absent", None = "Aucun")
+
+# Colonnes issues du codage 0/1 (ex. "bsmt_qual.Ex") -> "Qualité du sous-sol : Excellent"
+pretty_var <- function(v) {
+  vapply(v, function(x) {
+    parts <- strsplit(x, ".", fixed = TRUE)[[1]]
+    if (length(parts) >= 2) {
+      lv <- paste(parts[-1], collapse = ".")
+      if (lv %in% names(qual_fr)) lv <- qual_fr[[lv]]
+      paste0(lab(parts[1]), " : ", lv)
+    } else lab(x)
+  }, character(1), USE.NAMES = FALSE)
+}
+
+
+# Textes du tableau DT en français
+dt_lang <- list(search = "Rechercher :", lengthMenu = "Afficher _MENU_ lignes",
+                info = "Lignes _START_ à _END_ sur _TOTAL_", zeroRecords = "Aucun résultat",
+                thousands = "\u00a0", decimal = ",",
+                paginate = list(previous = "Précédent", `next` = "Suivant"))
+
+# ------------------------------------------------------------
+# 2. FONCTIONS D'AFFICHAGE
+# ------------------------------------------------------------
+# Style des tableaux DT : bootstrap5 si la version de DT le permet, sinon bootstrap4
+dt_style <- tryCatch({
+  ok <- eval(formals(DT::datatable)$style)
+  if ("bootstrap5" %in% ok) "bootstrap5" else "bootstrap4"
+}, error = function(e) "default")
+
+fmt_k <- function(x) paste0(formatC(round(x / 1000), format = "d", big.mark = "\u00a0"), "\u00a0k$")
+fmt_usd <- function(x) paste0(formatC(round(x), format = "d", big.mark = "\u00a0"), "\u00a0$")
+fmt_num <- function(x, d = 3) format(round(x, d), nsmall = d, decimal.mark = ",")
+
+# Couleurs des graphiques selon le mode clair / sombre
+pal <- function(mode) {
+  if (identical(mode, "dark")) {
+    list(fg = "#E6EAF0", grid = "rgba(255,255,255,0.12)", main = "#2BB3C4", accent = "#F2B450", muted = "#9AA3B2",
+         band = "rgba(43,179,196,0.25)", bad = "#FF7F6B", mid = "#2b3038")
+  } else {
+    list(fg = "#22303a", grid = "rgba(34,48,58,0.10)", main = "#2F5D62", accent = "#C4622D", muted = "#7A8499",
+         band = "rgba(47,93,98,0.18)", bad = "#9B2D30", mid = "#f5f5f5")
+  }
+}
+
+# Applique le même style (fond transparent, couleurs, polices) à tous les graphiques
+style_plot <- function(p, mode, title = NULL, xtitle = NULL, ytitle = NULL, ...) {
+  cl <- pal(mode)
+  p %>%
+    layout(
+      title = list(text = title, x = 0.02, font = list(size = 15)),
+      xaxis = list(title = xtitle, gridcolor = cl$grid, zerolinecolor = cl$grid),
+      yaxis = list(title = ytitle, gridcolor = cl$grid, zerolinecolor = cl$grid),
+      paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)",
+      font = list(color = cl$fg), margin = list(t = 55),
+      legend = list(orientation = "h", y = -0.25), ...
+    ) %>%
+    config(displaylogo = FALSE, locale = "fr")
+}
+
+# Ligne verticale + étiquette (pour λ, moyenne, prix estimé...)
+vline <- function(x, color, dash = "dash") {
+  list(type = "line", x0 = x, x1 = x, y0 = 0, y1 = 1, yref = "paper",
+       line = list(color = color, width = 1.6, dash = dash))
+}
+vlabel <- function(x, text, color, y = 1.04) {
+  list(x = x, y = y, yref = "paper", text = text, showarrow = FALSE,
+       font = list(color = color, size = 11))
+}
+
+# Feuille de style de l'interface (cartes, bandeau, pastilles, cases de valeur)
+app_css <- "
+  body { background: #faf7f2; color: #22303a; }
+  h1, h2, h3, h4, h5, .navbar-brand, .card-header, .masthead h2 {
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif; }
+  .navbar { border-bottom: 1px solid #e4dccf; }
+  .navbar-brand { font-weight: 700; font-size: 1.15rem; letter-spacing: -.01em; }
+  .nav-link { font-weight: 500; }
+  .navbar .nav-link.active { color: #C4622D !important; box-shadow: inset 0 -2px 0 #C4622D; }
+  .card { background: #fff; border: 1px solid #e4dccf; border-radius: 6px; box-shadow: none; }
+  .card-header { background: transparent; border-bottom: 1px solid #efe8dc; font-weight: 600; font-size: 1.05rem; }
+  .bslib-sidebar-layout > .sidebar { background: #f3ede2; border-right: 1px solid #e4dccf; }
+  .bslib-value-box.bslib-value-box { background: #fff !important; color: #22303a !important;
+      border: 1px solid #e4dccf; border-left: 5px solid #C4622D; border-radius: 6px; }
+  .bslib-value-box .value-box-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: #7a6f60; }
+  .bslib-value-box .value-box-value { font-family: Georgia, serif; font-size: 1.9rem; font-weight: 700; }
+  .bslib-value-box .value-box-showcase { color: #C4622D !important; opacity: .9; }
+  .masthead { padding: 8px 2px 18px; margin-bottom: 18px; border-bottom: 2px solid #22303a; }
+  .masthead .kicker { text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; color: #C4622D; font-weight: 700; }
+  .masthead h2 { font-size: 2.3rem; font-weight: 700; margin: 4px 0 8px; letter-spacing: -.02em; }
+  .masthead p { margin: 0; max-width: 760px; font-size: 1.05rem; color: #4a5560; }
+  .lam-pill { border-left: 3px solid #2F5D62; background: #eef2ef; padding: 8px 14px;
+              font-size: .85rem; margin: 4px 0 14px; display: block; color: #2c3b40; }
+  .side-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+                color: #8a7d69; margin: 16px 0 6px; border-bottom: 1px solid #e0d6c5; padding-bottom: 3px; }
+  .small-note { font-size: .85rem; color: #6a6358; }
+  .btn-primary { background: #C4622D; border-color: #C4622D; font-weight: 600; border-radius: 4px; }
+  .btn-primary:hover, .btn-primary:focus { background: #a84f22; border-color: #a84f22; }
+  .vs-up   { color: #9B2D30; font-weight: 700; }
+  .vs-down { color: #2F5D62; font-weight: 700; }
+  .bslib-grid > .card, .bslib-grid > div { min-width: 0; }
+  .js-plotly-plot, .plotly.html-widget { max-width: 100%; }
+"
+
+# ------------------------------------------------------------
+# 3. UI (interface)
+# ------------------------------------------------------------
 ui <- page_navbar(
-  title = "Ames Housing Predictor",
-  theme = bs_theme(
-    version = 5,
-    bootswatch = "flatly",
-    primary = "#1f77b4",
-    secondary = "#2c3e50",
-    success = "#2ecc71",
-    warning = "#f39c12"
+  title = "Prix immobilier · Ridge, Lasso & Elastic Net",
+  id = "nav", lang = "fr", fillable = FALSE, bg = "#faf7f2", inverse = FALSE,
+  theme = bs_theme(version = 5, primary = "#C4622D", secondary = "#2F5D62",
+                   base_font = c("Segoe UI", "system-ui", "-apple-system", "sans-serif")),
+  header = tagList(
+    tags$style(HTML(app_css)),
+    # Les graphiques créés dans un onglet caché sont redimensionnés quand l'onglet s'affiche
+    tags$script(HTML("$(document).on('shown.bs.tab', function() { setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 150); });"))
   ),
-
-  nav_panel(
-    title = "Accueil",
-    div(
-      class = "container-fluid",
-      style = "padding: 24px;",
-      h2("Prédiction du prix de vente des logements"),
-      p("Cette application compare les modèles Ridge, Lasso, Elastic Net et la régression classique pour prédire le prix d'un logement à partir du jeu de données Ames Housing."),
-      br(),
-
-      layout_columns(
-        card(
-          full_screen = TRUE,
-          class = "border-0 shadow-sm",
-          card_header("Données"),
-          card_body(
-            tags$b("Observations : "), nrow(ames_data), br(),
-            tags$b("Variables explicatives : "), ncol(ames_data) - 2, br(),
-            tags$b("Cible : "), "saleprice"
-          )
-        ),
-        card(
-          full_screen = TRUE,
-          class = "border-0 shadow-sm",
-          card_header("Objectif"),
-          card_body(
-            "Estimer le prix de vente d'une maison à l'aide de méthodes de régression pénalisées, plus robustes quand il y a beaucoup de variables ou du bruit."
-          )
-        ),
-        card(
-          full_screen = TRUE,
-          class = "border-0 shadow-sm",
-          card_header("Méthodes"),
-          card_body(
-            "Ridge, Lasso, Elastic Net et régression classique (MCO)."
-          )
-        )
-      ),
-
-      br(),
-      card(
-        class = "border-0 shadow-sm",
-        card_header("Aperçu du jeu de données"),
-        card_body(
-          DTOutput("data_preview", height = "320px")
-        )
-      )
-    )
+  
+  # ---------------- Onglet 1 : Données ----------------
+  nav_panel("Données", icon = icon("table"),
+            div(class = "masthead",
+                div(class = "kicker", "Analyse prédictive · Ames, Iowa · 2006-2010"),
+                h2("Combien vaut cette maison ?"),
+                p("Ridge, Lasso et Elastic Net face à 2 930 ventes réelles : quelles variables comptent vraiment, ",
+                  "et avec quelle précision peut-on estimer un prix ?")),
+            layout_column_wrap(width = 1/4, fill = FALSE,
+                               value_box("Logements", format(nrow(data), big.mark = "\u00a0"), showcase = icon("house"), theme = "primary"),
+                               value_box("Variables", ncol(data) - 2, showcase = icon("list"), theme = "primary"),
+                               value_box("Prix médian", fmt_usd(median(data$saleprice)), showcase = icon("dollar-sign"), theme = "primary"),
+                               value_box("Cellules manquantes",
+                                         paste0(fmt_num(100 * mean(is.na(data)), 1), " %"), showcase = icon("circle-question"), theme = "primary")
+            ),
+            layout_column_wrap(width = 1/2,
+                               card(card_header("À propos du jeu de données"),
+                                    p("Ames Housing : ventes ", strong("réelles"), " de maisons à Ames (Iowa, États-Unis)
+          entre 2006 et 2010, d'après le registre du service d'évaluation de la ville.
+          Compilé par Dean De Cock (2011, ", em("Journal of Statistics Education"), ")."),
+                                    tags$ul(
+                                      tags$li(strong("Cible : "), "saleprice, prix de vente en dollars US."),
+                                      tags$li(strong("Explicatives : "), "environ 80 variables (surfaces, qualité, année,
+                  quartier, garage, sous-sol...), numériques et catégorielles."),
+                                      tags$li(strong("Valeurs atypiques : "), "5 maisons de plus de 4 000 pi², dont 3 ventes
+                  « Partial » (maisons non terminées) vendues très en dessous de leur valeur."),
+                                      tags$li(strong("Pourquoi ce jeu : "), "beaucoup de variables corrélées pour un nombre
+                  limité de logements, donc situation idéale pour Ridge, Lasso et Elastic Net.")
+                                    ),
+                                    p(class = "small-note", "1 pi² (pied carré) = 0,093 m².")),
+                               card(card_header("Variables avec des valeurs manquantes"),
+                                    plotlyOutput("plot_na", height = "320px"), full_screen = TRUE)
+            ),
+            card(card_header("Aperçu des données"), DTOutput("tbl_data"), full_screen = TRUE)
   ),
-
-  nav_panel(
-    title = "Modèle",
-    sidebarLayout(
-      sidebarPanel(
-        width = 3,
-        h4("Paramètres du modèle"),
-        selectInput(
-          inputId = "model_choice",
-          label = "Modèle",
-          choices = c("Ridge", "Lasso", "Elastic Net", "MCO"),
-          selected = "Lasso"
-        ),
-        sliderInput(
-          inputId = "alpha_value",
-          label = "Alpha (Elastic Net)",
-          min = 0.05,
-          max = 0.95,
-          value = 0.5,
-          step = 0.05
-        ),
-        sliderInput(
-          inputId = "nfolds",
-          label = "Nombre de plis (CV)",
-          min = 3,
-          max = 15,
-          value = 10,
-          step = 1
-        ),
-        numericInput(
-          inputId = "seed_value",
-          label = "Graine aléatoire",
-          value = 123,
-          min = 1,
-          max = 9999,
-          step = 1
-        ),
-        actionButton("train_model", "Entraîner le modèle", class = "btn-primary", width = "100%")
-      ),
-
-      mainPanel(
-        width = 9,
-        fluidRow(
-          value_box(
-            title = "RMSE",
-            value = textOutput("rmse_box", inline = TRUE),
-            showcase = icon("chart-line"),
-            theme_color = "primary"
-          ),
-          value_box(
-            title = "MAE",
-            value = textOutput("mae_box", inline = TRUE),
-            showcase = icon("calculator"),
-            theme_color = "success"
-          ),
-          value_box(
-            title = "R²",
-            value = textOutput("r2_box", inline = TRUE),
-            showcase = icon("percent"),
-            theme_color = "warning"
-          )
-        ),
-        br(),
-        card(
-          class = "border-0 shadow-sm",
-          card_header("Courbe de validation croisée"),
-          card_body(
-            plotOutput("cv_plot", height = "350px")
-          )
-        ),
-        br(),
-        card(
-          class = "border-0 shadow-sm",
-          card_header("Résultats du modèle"),
-          card_body(
-            tableOutput("model_summary")
-          )
-        )
-      )
-    )
+  
+  # ---------------- Onglet 2 : Modèle ----------------
+  nav_panel("Modèle", icon = icon("sliders"),
+            layout_sidebar(
+              sidebar = sidebar(width = 330, title = "Paramètres du modèle",
+                                div(class = "side-title", "Algorithme"),
+                                selectInput("algo", NULL, c("Ridge", "Lasso", "Elastic Net"), selected = "Lasso"),
+                                conditionalPanel("input.algo == 'Elastic Net'",
+                                                 sliderInput("alpha", "Mélange α (0 = Ridge, 1 = Lasso)",
+                                                             min = 0.05, max = 0.95, value = 0.5, step = 0.05)),
+                                div(class = "side-title", "Pénalité λ"),
+                                radioButtons("lam_rule", NULL,
+                                             choices = c("λ min (meilleure erreur CV)" = "min",
+                                                         "λ 1se (modèle plus simple)" = "1se",
+                                                         "Manuel" = "manuel")),
+                                conditionalPanel("input.lam_rule == 'manuel'",
+                                                 sliderInput("loglam", "log10(λ)", min = -4, max = 6, value = 3, step = 0.1)),
+                                div(class = "side-title", "Validation croisée"),
+                                sliderInput("folds", "Plis", min = 3, max = 10, value = 10, step = 1),
+                                p(class = "small-note", "Découpage fixe : 80 % apprentissage, 20 % test (graine 123)."),
+                                actionButton("train", "Entraîner le modèle", icon = icon("play"),
+                                             class = "btn-primary w-100")
+              ),
+              layout_column_wrap(width = 1/4, fill = FALSE,
+                                 value_box("RMSE (test)", textOutput("vb_rmse"), showcase = icon("bullseye"), theme = "primary"),
+                                 value_box("MAE (test)", textOutput("vb_mae"), showcase = icon("ruler"), theme = "primary"),
+                                 value_box("R² (test)", textOutput("vb_r2"), showcase = icon("chart-line"), theme = "primary"),
+                                 value_box("Variables retenues", textOutput("vb_nvar"), showcase = icon("filter"), theme = "primary")
+              ),
+              div(class = "lam-pill", textOutput("lam_info", inline = TRUE)),
+              navset_card_tab(id = "res",
+                              nav_panel("Validation croisée", plotlyOutput("plot_cv", height = "420px")),
+                              nav_panel("Chemins des coefficients", plotlyOutput("plot_path", height = "460px")),
+                              nav_panel("Réel vs prédit", plotlyOutput("plot_pred", height = "460px"))
+              )
+            )
   ),
-
-  nav_panel(
-    title = "Variables",
-    card(
-      class = "border-0 shadow-sm",
-      card_header("Coefficients les plus influents"),
-      card_body(
-        DTOutput("coef_table", height = "520px")
-      )
-    )
+  
+  # ---------------- Onglet 3 : Variables ----------------
+  nav_panel("Variables", icon = icon("list-ol"),
+            layout_column_wrap(width = 1, fill = FALSE,
+                               card(card_header("Variables les plus influentes (coefficients standardisés)"),
+                                    sliderInput("topn", "Nombre de variables affichées", min = 5, max = 40, value = 15, step = 1, width = "320px"),
+                                    plotlyOutput("plot_coef", height = "520px"),
+                                    p(class = "small-note", "Coefficient standardisé = coefficient × écart-type de la variable :
+          permet de comparer des variables d'unités différentes. Les barres vertes augmentent le
+          prix, les rouges le diminuent. Les barres orange (⚠) sont des catégories présentes dans 3 maisons
+          ou moins : leur coefficient absorbe surtout une vente atypique, il ne faut pas l'interpréter."),
+                                    full_screen = TRUE),
+                               card(card_header("Tous les coefficients non nuls"),
+                                    DTOutput("tbl_coef"), full_screen = TRUE)
+            )
   ),
-
-  nav_panel(
-    title = "Prédiction",
-    sidebarLayout(
-      sidebarPanel(
-        width = 3,
-        h4("Description de la maison"),
-        numericInput("gr_liv_area", "Superficie habitable (pi²)", value = 1800, min = 400, max = 5000, step = 25),
-        numericInput("overall_qual", "Qualité globale", value = 7, min = 1, max = 10, step = 1),
-        numericInput("year_built", "Année de construction", value = 2000, min = 1880, max = 2010, step = 1),
-        numericInput("garage_cars", "Nombre de voitures garage", value = 2, min = 0, max = 4, step = 1),
-        numericInput("total_bsmt_sf", "Surface du sous-sol (pi²)", value = 900, min = 0, max = 4000, step = 50),
-        selectInput("neighborhood", "Quartier", choices = unique(ames_data$Neighborhood), selected = "NAmes"),
-        actionButton("predict_house", "Estimer le prix", class = "btn-success", width = "100%")
-      ),
-
-      mainPanel(
-        width = 9,
-        card(
-          class = "border-0 shadow-sm",
-          card_header("Estimation du prix"),
-          card_body(
-            h3(textOutput("prediction_value")),
-            p("Cette estimation est calculée avec le modèle sélectionné et le prétraitement standard du projet."),
-            br(),
-            plotlyOutput("prediction_plot", height = "350px")
-          )
-        )
-      )
-    )
-  )
+  
+  # ---------------- Onglet 4 : Prédiction ----------------
+  nav_panel("Prédiction", icon = icon("house"),
+            layout_sidebar(
+              sidebar = sidebar(width = 330, title = "Caractéristiques du logement",
+                                div(class = "side-title", "Emplacement"),
+                                selectInput("p_neigh", NULL, choices = neighborhoods,
+                                            selected = names(which.max(table(data$neighborhood)))),
+                                div(class = "side-title", "Qualité et âge"),
+                                sliderInput("p_qual", "Qualité générale (1-10)", min = 1, max = 10, value = 6, step = 1),
+                                numericInput("p_year", "Année de construction", value = 1995, min = 1870, max = 2010, step = 1),
+                                div(class = "side-title", "Surfaces"),
+                                numericInput("p_area", "Surface habitable (pi²)", value = 1500, min = 300, max = 6000, step = 50),
+                                textOutput("p_area_m2"),
+                                numericInput("p_bsmt", "Surface du sous-sol (pi²)", value = 1000, min = 0, max = 4000, step = 50),
+                                div(class = "side-title", "Pièces et garage"),
+                                sliderInput("p_garage", "Places de garage", min = 0, max = 5, value = 2, step = 1),
+                                sliderInput("p_bath", "Salles de bain complètes", min = 0, max = 4, value = 2, step = 1),
+                                sliderInput("p_bed", "Chambres", min = 0, max = 8, value = 3, step = 1),
+                                actionButton("estimate", "Estimer le prix", icon = icon("calculator"),
+                                             class = "btn-primary w-100"),
+                                p(class = "small-note", style = "margin-top:10px",
+                                  "Les autres caractéristiques prennent la valeur typique du jeu d'apprentissage
+           (médiane ou modalité la plus fréquente).")
+              ),
+              uiOutput("p_warning"),
+              layout_column_wrap(width = 1/3, fill = FALSE,
+                                 value_box("Prix estimé", textOutput("p_price"), showcase = icon("tag"), theme = "primary"),
+                                 value_box("Fourchette indicative (± 1 RMSE)", textOutput("p_range"), showcase = icon("arrows-left-right"), theme = "secondary"),
+                                 value_box("Prix médian du quartier", textOutput("p_neigh_med"), showcase = icon("location-dot"), theme = "secondary")
+              ),
+              uiOutput("p_vs"),
+              card(card_header("Où se situe ce logement ?"),
+                   plotlyOutput("plot_where", height = "380px"), full_screen = TRUE),
+              p(class = "small-note", "Le modèle utilisé est celui entraîné dans l'onglet « Modèle »
+        (algorithme, λ et paramètres choisis). L'estimation est indicative.")
+            )
+  ),
+  
+  nav_spacer(),
+  nav_item(tags$a(icon("book"), " Article De Cock (2011)", target = "_blank", rel = "noopener",
+                  href = "https://jse.amstat.org/v19n3/decock.pdf"))
 )
 
+# ------------------------------------------------------------
+# 4. SERVER (calculs et graphiques)
+# ------------------------------------------------------------
 server <- function(input, output, session) {
-
-  prep_data <- reactive({
-    set.seed(as.integer(input$seed_value))
-    prepare_ames(ames_data, p = 0.80, seed = as.integer(input$seed_value))
+  
+  # Réglages fixes (les mêmes que dans main.R) : découpage 80 / 20 et graine 123
+  SEED  <- 123
+  SPLIT <- 0.80
+  
+  # Thème graphique (clair uniquement)
+  mode <- reactive("light")
+  
+  # ==========================================================
+  # A. Onglet Données
+  # ==========================================================
+  output$tbl_data <- renderDT({
+    datatable(data, style = dt_style, class = "table-sm", rownames = FALSE,
+              options = list(pageLength = 8, scrollX = TRUE, language = dt_lang))
   })
-
-  model_metrics <- eventReactive(input$train_model, {
-    req(prep_data())
-    fit_models(
-      prep_data(),
-      uselog = FALSE,
-      seed = as.integer(input$seed_value),
-      nfolds = as.integer(input$nfolds)
-    )
+  
+  output$plot_na <- renderPlotly({
+    na <- sort(colSums(is.na(data)), decreasing = TRUE)
+    na <- head(na[na > 0], 15)
+    cl <- pal(mode())
+    plot_ly(x = unname(na), y = factor(names(na), levels = rev(names(na))), type = "bar",
+            orientation = "h", marker = list(color = cl$main),
+            hovertemplate = "%{y} : %{x} valeurs manquantes<extra></extra>") %>%
+      style_plot(mode(), xtitle = "Nombre de valeurs manquantes")
+  })
+  
+  # ==========================================================
+  # B. Entraînement du modèle (déclenché par le bouton, et au démarrage)
+  # ==========================================================
+  fit <- eventReactive(input$train, {
+    withProgress(message = "Entraînement du modèle...", value = 0, {
+      incProgress(0.15, detail = "Préparation des données")
+      dat   <- data
+      prep  <- prepare_ames(dat, p = SPLIT, seed = SEED)
+      alpha <- switch(input$algo, "Ridge" = 0, "Lasso" = 1, input$alpha)
+      uselog <- FALSE   # prix brut, sans transformation logarithmique
+      yt <- if (uselog) log(prep$y_train) else prep$y_train
+      
+      incProgress(0.35, detail = "Validation croisée")
+      set.seed(SEED)
+      cv  <- cv.glmnet(prep$x_train, yt, alpha = alpha, nfolds = input$folds)
+      lam <- switch(input$lam_rule, "min" = cv$lambda.min, "1se" = cv$lambda.1se, 10^input$loglam)
+      
+      incProgress(0.3, detail = "Ajustement final")
+      model <- glmnet(prep$x_train, yt, alpha = alpha, lambda = lam)
+      path  <- glmnet(prep$x_train, yt, alpha = alpha)
+      
+      pred <- as.numeric(predict(model, newx = prep$x_test))
+      if (uselog) pred <- exp(pred)
+      met  <- metrics_reg(pred, prep$y_test)
+      
+      beta <- as.numeric(coef(model))[-1]
+      sds  <- apply(prep$x_train, 2, sd)
+      coefs <- data.frame(variable = colnames(prep$x_train), coefficient = beta,
+                          coef_std = beta * sds, n_train = as.numeric(colSums(prep$x_train != 0)),
+                          stringsAsFactors = FALSE)
+      # Colonne 0/1 (catégorie) présente dans 3 maisons ou moins : variable « rare »
+      coefs$rare <- grepl(".", coefs$variable, fixed = TRUE) & coefs$n_train <= 3
+      
+      list(prep = prep, alpha = alpha, algo = input$algo, uselog = uselog, cv = cv, lambda = lam,
+           model = model, path = path, pred = pred, metrics = met, coefs = coefs, sds = sds,
+           folds = input$folds, lam_rule = input$lam_rule, seed = SEED,
+           data_used = dat, excl = FALSE, split = SPLIT * 100)
+    })
   }, ignoreNULL = FALSE)
-
-  selected_model_fit <- reactive({
-    req(prep_data())
-    if (input$model_choice == "MCO") {
-      list(model = "MCO")
-    } else {
-      set.seed(as.integer(input$seed_value))
-      alpha_val <- if (input$model_choice == "Ridge") 0 else if (input$model_choice == "Lasso") 1 else input$alpha_value
-      cv_fit <- cv.glmnet(
-        prep_data()$x_train,
-        prep_data()$y_train,
-        alpha = alpha_val,
-        nfolds = as.integer(input$nfolds),
-        family = "gaussian"
-      )
-      list(model = cv_fit, alpha = alpha_val)
+  
+  output$vb_rmse <- renderText(fmt_usd(fit()$metrics["RMSE"]))
+  output$vb_mae  <- renderText(fmt_usd(fit()$metrics["MAE"]))
+  output$vb_r2   <- renderText(fmt_num(fit()$metrics["R2"], 3))
+  output$vb_nvar <- renderText({
+    f <- fit(); paste0(sum(f$coefs$coefficient != 0), " / ", sum(f$sds > 0))
+  })
+  output$lam_info <- renderText({
+    f <- fit()
+    fl <- function(x) format(signif(x, 4), decimal.mark = ",", big.mark = "\u00a0")
+    paste0("Algorithme : ", f$algo, if (f$algo == "Elastic Net") paste0(" (α = ", f$alpha, ")") else "",
+           " · λ choisi = ", fl(f$lambda), " (log10 = ", fmt_num(log10(f$lambda), 2), ")",
+           " · λ min = ", fl(f$cv$lambda.min), " · λ 1se = ", fl(f$cv$lambda.1se),
+           if (f$excl) " · sans les 5 maisons > 4 000 pi²" else "")
+  })
+  
+  output$plot_cv <- renderPlotly({
+    f <- fit(); cl <- pal(mode()); cv <- f$cv
+    # On affiche la racine de l'erreur quadratique (RMSE) : lisible, en dollars
+    d <- data.frame(l = log10(cv$lambda), m = sqrt(cv$cvm), lo = sqrt(cv$cvlo), hi = sqrt(cv$cvup), nz = cv$nzero)
+    mn <- min(d$m)
+    lc <- log10(f$lambda); l1 <- log10(cv$lambda.min); l2 <- log10(cv$lambda.1se)
+    plot_ly(d, x = ~l) %>%
+      add_ribbons(ymin = ~lo, ymax = ~hi, fillcolor = cl$band, line = list(width = 0),
+                  name = "± 1 écart-type", hoverinfo = "skip") %>%
+      add_lines(y = ~m, name = "Erreur de validation croisée", line = list(color = cl$main, width = 3),
+                text = ~nz, hovertemplate = "log10(λ) = %{x:.2f}<br>Erreur = %{y:,.0f}<br>Variables non nulles : %{text}<extra></extra>") %>%
+      style_plot(mode(), title = paste0("Choix de λ par validation croisée (", f$folds, " plis)"),
+                 xtitle = "log10(λ)  (plus à droite = modèle plus simple)",
+                 ytitle = if (f$uselog) "Erreur (échelle log)" else "Erreur de prédiction ($)",
+                 shapes = list(vline(l1, cl$accent), vline(l2, cl$bad, "dot"), vline(lc, cl$fg, "solid")),
+                 annotations = list(vlabel(l1, "λ min", cl$accent), vlabel(l2, "λ 1se", cl$bad, y = 1.12),
+                                    vlabel(lc, "λ choisi", cl$fg, y = 1.20))) %>%
+      layout(yaxis = list(range = c(mn * 0.9, mn * 2.2)))
+  })
+  
+  output$plot_path <- renderPlotly({
+    f <- fit(); cl <- pal(mode())
+    B <- as.matrix(f$path$beta) * f$sds
+    keep <- order(apply(abs(B), 1, max), decreasing = TRUE)[seq_len(min(20, nrow(B)))]
+    x <- log10(f$path$lambda)
+    p <- plot_ly()
+    for (i in keep) {
+      p <- add_lines(p, x = x, y = B[i, ], name = rownames(B)[i], line = list(width = 1.8),
+                     hovertemplate = paste0(rownames(B)[i], "<br>log10(λ) = %{x:.2f}<br>coef. std = %{y:,.0f}<extra></extra>"))
     }
+    p %>% style_plot(mode(), title = "Chemins des coefficients (20 variables les plus fortes)",
+                     xtitle = "log10(λ)", ytitle = "Coefficient standardisé",
+                     shapes = list(vline(log10(f$lambda), cl$fg, "solid")),
+                     annotations = list(vlabel(log10(f$lambda), "λ choisi", cl$fg)),
+                     legend = list(orientation = "v", font = list(size = 10)))
   })
-
-  output$data_preview <- renderDT({
-    datatable(
-      head(ames_data, 100),
-      options = list(pageLength = 10, scrollX = TRUE),
-      rownames = FALSE
-    )
+  
+  output$plot_pred <- renderPlotly({
+    f <- fit(); cl <- pal(mode())
+    y <- f$prep$y_test; r <- range(c(y, f$pred))
+    plot_ly() %>%
+      add_markers(x = y, y = f$pred, name = "Logements du test",
+                  marker = list(color = cl$main, opacity = 0.55, size = 7),
+                  hovertemplate = "Réel : %{x:,.0f} $<br>Prédit : %{y:,.0f} $<extra></extra>") %>%
+      add_lines(x = r, y = r, name = "Prédiction parfaite", line = list(color = cl$accent, dash = "dash", width = 2)) %>%
+      style_plot(mode(), title = paste0("Prix réels vs prix prédits (R² = ", fmt_num(f$metrics["R2"], 3), ")"),
+                 xtitle = "Prix réel ($)", ytitle = "Prix prédit ($)")
   })
-
-  output$model_summary <- renderTable({
-    metrics <- model_metrics()
-    if (is.null(metrics)) return(NULL)
-    metrics[, c("Modele", "Alpha", "Lambda", "RMSE", "MAE", "R2", "Variables")]
-  }, digits = 0)
-
-  output$cv_plot <- renderPlot({
-    req(model_metrics())
-    req(prep_data())
-    if (input$model_choice == "MCO") {
-      return(NULL)
+  
+  # ==========================================================
+  # C. Onglet Variables
+  # ==========================================================
+  coefs_nz <- reactive({
+    d <- fit()$coefs
+    d <- d[d$coefficient != 0, ]
+    d[order(abs(d$coef_std), decreasing = TRUE), ]
+  })
+  
+  output$plot_coef <- renderPlotly({
+    cl <- pal(mode())
+    top <- head(coefs_nz(), input$topn)
+    validate(need(nrow(top) > 0, "Aucune variable retenue avec ce λ : diminuez λ."))
+    nm <- pretty_var(top$variable)
+    nm <- ifelse(top$rare, paste0(nm, "  ⚠ ", top$n_train, " maison(s)"), nm)
+    col <- ifelse(top$rare, cl$accent, ifelse(top$coef_std > 0, cl$main, cl$bad))
+    plot_ly(x = top$coef_std, y = factor(nm, levels = rev(unique(nm))),
+            type = "bar", orientation = "h", marker = list(color = col),
+            hovertemplate = "%{y}<br>Coefficient standardisé : %{x:,.0f}<extra></extra>") %>%
+      style_plot(mode(), title = paste0(fit()$algo, " : ", nrow(top), " variables les plus influentes"),
+                 xtitle = "Effet sur le prix de +1 écart-type de la variable ($)") %>%
+      layout(margin = list(l = 260, t = 55))
+  })
+  
+  output$tbl_coef <- renderDT({
+    d <- coefs_nz()
+    out <- data.frame(Variable = pretty_var(d$variable), `Nom technique` = d$variable, Coefficient = d$coefficient,
+                      `Coefficient standardisé` = d$coef_std,
+                      `Maisons concernées` = ifelse(grepl(".", d$variable, fixed = TRUE), d$n_train, NA),
+                      check.names = FALSE)
+    datatable(out, style = dt_style, class = "table-sm", rownames = FALSE,
+              options = list(pageLength = 10, language = dt_lang)) %>%
+      formatRound(c("Coefficient", "Coefficient standardisé"), 2)
+  })
+  
+  # ==========================================================
+  # D. Onglet Prédiction
+  # ==========================================================
+  output$p_area_m2 <- renderText({
+    req(!is.na(input$p_area)); paste0("≈ ", round(input$p_area * 0.092903), " m²")
+  })
+  
+  output$p_warning <- renderUI({
+    msgs <- c()
+    chk <- function(v, val, name) {
+      if (!is.na(val) && (val < min(data[[v]], na.rm = TRUE) || val > max(data[[v]], na.rm = TRUE)))
+        msgs <<- c(msgs, paste0(name, " (", val, ") est hors de la plage observée (",
+                                min(data[[v]], na.rm = TRUE), " à ", max(data[[v]], na.rm = TRUE), ")."))
     }
-
-    alpha_val <- if (input$model_choice == "Ridge") 0 else if (input$model_choice == "Lasso") 1 else input$alpha_value
-    set.seed(as.integer(input$seed_value))
-    cv_fit <- cv.glmnet(
-      prep_data()$x_train,
-      prep_data()$y_train,
-      alpha = alpha_val,
-      nfolds = as.integer(input$nfolds)
-    )
-    plot_cv_rmse(cv_fit, title = paste("Validation croisée -", input$model_choice))
+    chk("gr_liv_area", input$p_area, "La surface habitable")
+    chk("year_built", input$p_year, "L'année de construction")
+    chk("total_bsmt_sf", input$p_bsmt, "La surface du sous-sol")
+    if (length(msgs) == 0) return(NULL)
+    div(class = "alert alert-warning", HTML(paste0("Attention : ", paste(msgs, collapse = "<br>"),
+                                                   "<br>L'estimation sera peu fiable.")))
   })
-
-  output$rmse_box <- renderText({
-    metrics <- model_metrics()
-    if (is.null(metrics)) return("--")
-    selected <- metrics[metrics$Modele == input$model_choice | (input$model_choice == "Elastic Net" & grepl("Elastic Net", metrics$Modele)), ]
-    if (nrow(selected) == 0) return("--")
-    sprintf("%.0f $", selected$RMSE[1])
+  
+  # Se recalcule au clic sur « Estimer » ET quand le modèle est ré-entraîné
+  pred_res <- reactive({
+    input$estimate
+    f <- fit()
+    isolate({
+      req(!is.na(input$p_area), !is.na(input$p_year), !is.na(input$p_bsmt))
+      ov <- list(neighborhood = input$p_neigh, overall_qual = input$p_qual,
+                 gr_liv_area = input$p_area, year_built = input$p_year,
+                 total_bsmt_sf = input$p_bsmt, garage_cars = input$p_garage,
+                 full_bath = input$p_bath, bedroom_abvgr = input$p_bed)
+      xnew <- make_new_x(f$prep, ov)
+      p <- as.numeric(predict(f$model, newx = xnew))
+      if (f$uselog) p <- exp(p)
+      tr <- f$prep$train_data
+      list(price = p, rmse = unname(f$metrics["RMSE"]),
+           neigh = median(tr$saleprice[tr$neighborhood == input$p_neigh]))
+    })
   })
-
-  output$mae_box <- renderText({
-    metrics <- model_metrics()
-    if (is.null(metrics)) return("--")
-    selected <- metrics[metrics$Modele == input$model_choice | (input$model_choice == "Elastic Net" & grepl("Elastic Net", metrics$Modele)), ]
-    if (nrow(selected) == 0) return("--")
-    sprintf("%.0f $", selected$MAE[1])
+  
+  output$p_price <- renderText(fmt_usd(pred_res()$price))
+  output$p_range <- renderText({
+    r <- pred_res(); paste0(fmt_k(max(r$price - r$rmse, 0)), " – ", fmt_k(r$price + r$rmse))
   })
-
-  output$r2_box <- renderText({
-    metrics <- model_metrics()
-    if (is.null(metrics)) return("--")
-    selected <- metrics[metrics$Modele == input$model_choice | (input$model_choice == "Elastic Net" & grepl("Elastic Net", metrics$Modele)), ]
-    if (nrow(selected) == 0) return("--")
-    sprintf("%.3f", selected$R2[1])
+  output$p_neigh_med <- renderText({
+    m <- pred_res()$neigh; if (is.na(m)) "n/d" else fmt_usd(m)
   })
-
-  output$coef_table <- renderDT({
-    req(prep_data())
-    req(selected_model_fit())
-    if (input$model_choice == "MCO") return(datatable(data.frame(Message = "Le modèle MCO n'affiche pas de coefficients pénalisés.")))
-
-    fit <- selected_model_fit()$model
-    coefs <- as.matrix(coef(fit, s = "lambda.min"))
-    coefs_df <- as.data.frame(coefs)
-    names(coefs_df) <- c("Coefficient")
-    coefs_df$Variable <- rownames(coefs_df)
-    coefs_df <- coefs_df[coefs_df$Variable != "(Intercept)", c("Variable", "Coefficient")]
-    coefs_df <- coefs_df[order(abs(coefs_df$Coefficient), decreasing = TRUE), ]
-    coefs_df$Coefficient <- round(coefs_df$Coefficient, 4)
-    datatable(coefs_df, options = list(pageLength = 20, scrollX = TRUE), rownames = FALSE)
+  
+  # Écart entre le prix estimé et le prix médian du quartier
+  output$p_vs <- renderUI({
+    r <- pred_res()
+    if (is.na(r$neigh) || r$neigh <= 0) return(NULL)
+    d <- 100 * (r$price / r$neigh - 1)
+    p(class = "small-note", style = "margin: 0 0 10px; opacity: 1;",
+      "Par rapport au prix médian du quartier : ",
+      span(class = if (d >= 0) "vs-up" else "vs-down",
+           paste0(if (d >= 0) "+" else "−", fmt_num(abs(d), 1), " %")))
   })
-
-  prediction_values <- eventReactive(input$predict_house, {
-    req(prep_data())
-
-    overrides <- list(
-      gr_liv_area = input$gr_liv_area,
-      overall_qual = input$overall_qual,
-      year_built = input$year_built,
-      garage_cars = input$garage_cars,
-      total_bsmt_sf = input$total_bsmt_sf,
-      neighborhood = input$neighborhood
-    )
-
-    x_new <- make_new_x(prep_data(), overrides = overrides)
-    alpha_val <- if (input$model_choice == "Ridge") 0 else if (input$model_choice == "Lasso") 1 else input$alpha_value
-
-    if (input$model_choice == "MCO") {
-      model_ols <- suppressWarnings(lm(prep_data()$y_train ~ ., data = as.data.frame(prep_data()$x_train)))
-      pred <- as.numeric(predict(model_ols, as.data.frame(x_new)))
-    } else {
-      cv_fit <- cv.glmnet(
-        prep_data()$x_train,
-        prep_data()$y_train,
-        alpha = alpha_val,
-        nfolds = as.integer(input$nfolds),
-        family = "gaussian"
-      )
-      pred <- as.numeric(predict(cv_fit, newx = x_new, s = "lambda.min"))
-    }
-
-    pred
-  })
-
-  output$prediction_value <- renderText({
-    val <- prediction_values()
-    paste0("Prix estimé : ", format(round(val[1], 0), big.mark = " "), " $")
-  })
-
-  output$prediction_plot <- renderPlotly({
-    p <- plot_ly(
-      x = c("Maison saisie", "Prix moyen du jeu"),
-      y = c(prediction_values()[1], mean(prep_data()$y_test)),
-      type = "bar",
-      marker = list(color = c("#1f77b4", "#2ecc71")),
-      text = ~paste0(round(y, 0), " $"),
-      textposition = "outside"
-    ) %>%
-      layout(
-        title = "Comparaison du prix estimé et du prix moyen du jeu de test",
-        xaxis = list(title = ""),
-        yaxis = list(title = "Prix ($)")
-      )
-    p
+  
+  output$plot_where <- renderPlotly({
+    r <- pred_res(); cl <- pal(mode())
+    plot_ly(x = data$saleprice, type = "histogram", nbinsx = 45,
+            marker = list(color = cl$main, opacity = 0.75, line = list(color = "white", width = 0.4)),
+            hovertemplate = "Prix : %{x}<br>Logements : %{y}<extra></extra>") %>%
+      style_plot(mode(), title = "Prix estimé par rapport à tous les logements du jeu de données",
+                 xtitle = "Prix de vente ($)", ytitle = "Nombre de logements",
+                 shapes = list(
+                   list(type = "rect", x0 = max(r$price - r$rmse, 0), x1 = r$price + r$rmse,
+                        y0 = 0, y1 = 1, yref = "paper", fillcolor = cl$band, line = list(width = 0)),
+                   vline(r$price, cl$accent, "solid")),
+                 annotations = list(vlabel(r$price, "prix estimé", cl$accent)))
   })
 }
 
-shinyApp(ui, server)
+shinyApp(ui = ui, server = server)
